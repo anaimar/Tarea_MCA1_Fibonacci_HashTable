@@ -1,82 +1,66 @@
-import java.math.BigInteger;
-import java.util.Hashtable;
+import java.util.concurrent.ConcurrentHashMap;
 
-// Modificación: FibonacciThreadsMemoized.java
-public class FibonacciThreadsMemoized implements Runnable {
+public class FibonacciThreads implements Runnable {
 
-    // IV) Se usa una Hashtable STATIC para compartir la 'memoria' 
-    // entre todos los threads y evitar recalculos globales.
-    private static final Hashtable<BigInteger, BigInteger> memo = new Hashtable<>();
-    
-    // Inicialización estática de los casos base: F(0)=0, F(1)=1
+    // Caché estática para memoización, segura para hilos.
+    private static final ConcurrentHashMap<Long, Long> memo = new ConcurrentHashMap<>();
+
+    // Inicializar los casos base F(0) y F(1) en el caché.
     static {
-        memo.put(BigInteger.ZERO, BigInteger.ZERO); 
-        memo.put(BigInteger.ONE, BigInteger.ONE);   
+        memo.put(0L, 0L); // F(0) = 0
+        memo.put(1L, 1L); // F(1) = 1
     }
 
-    BigInteger fi;
+    long fi;
     int num;
 
-    public FibonacciThreadsMemoized(int n, BigInteger f) {
+    public FibonacciThreads(int n, long f) {
         num = n;
         fi = f;
     }
 
     @Override
     public void run() {
-        // En un entorno real se usaría un logger. Usamos System.out.println
-        System.out.println("Starte #" + num + " para F(" + fi + ")");
-        BigInteger res = fibonacci(fi);
+        System.out.println("Starte #" + num);
+        long res = fibonacci(fi);
         System.out.println("Abschlussverfahren: " + num +
                            " - " + "fibonacci(" + fi + ") =" + res);
     }
 
-    /**
-     * Función Fibonacci recursiva con Memoización.
-     * @param n La posición a calcular.
-     * @return El n-ésimo número de Fibonacci.
-     */
-    public BigInteger fibonacci(BigInteger n) {
-        
-        // 1. Revisar Memoria (Memoization): Si ya está calculado, devolver el valor O(1)
-        if (memo.containsKey(n)) {
-            return memo.get(n);
-        }
-        
-        // 2. Caso Base: Si n es menor a 2, debe ser 0 o 1.
-        if (n.compareTo(BigInteger.TWO) < 0) {
-            // Devuelve el valor del caso base.
-            return memo.getOrDefault(n, n); 
+    // Método fibonacci modificado con memoización
+    long fibonacci(long f) {
+        // 1. Verificar si el resultado ya está en el caché
+        if (memo.containsKey(f)) {
+            return memo.get(f);
         }
 
-        // 3. Calcular Recursivamente y Almacenar:
-        // Las llamadas recursivas ahora consultan y almacenan en 'memo'
-        BigInteger nMinusOne = n.subtract(BigInteger.ONE);
-        BigInteger nMinusTwo = n.subtract(BigInteger.TWO);
-        
-        BigInteger fibNMinusOne = fibonacci(nMinusOne);
-        BigInteger fibNMinusTwo = fibonacci(nMinusTwo);
-        
-        BigInteger result = fibNMinusOne.add(fibNMinusTwo);
+        // Si f es menor que 0, puede ser un error, pero el cálculo ya estaría en memo si fuera 0 o 1.
+        // Si el valor no está en el caché (lo cual es esperado para f > 1):
+        if (f < 2) {
+             // Este caso solo debería ocurrir si 'f' es 0 o 1, pero ya están en el caché.
+             // Si se llama con un 'f' no positivo, retornamos 1 para ser consistentes con la lógica original
+             // o 0/1 para ser consistentes con la secuencia. Mantendré la secuencia estándar (F(0)=0, F(1)=1).
+             return (f == 0) ? 0 : 1;
+        }
 
-        // 4. Guardar resultado en la tabla para uso futuro
-        memo.put(n, result);
+        // 2. Si no está, calcularlo de forma recursiva (con memoización para las subllamadas)
+        long result = fibonacci(f - 1) + fibonacci(f - 2);
 
+        // 3. Almacenar el resultado en el caché antes de retornarlo
+        memo.put(f, result);
         return result;
     }
 
-    // El método main modificado para probar números más grandes
     static void main() {
         Thread[] threads = new Thread[10];
 
-        // Se generan números aleatorios entre F(100) y F(1000) 
-        // para demostrar la mejora de velocidad.
         for (int i = 0; i < 10; i++) {
-            long algo = (long) (Math.random() * 900) + 100; // n entre 100 y 1000
-            threads[i] = new Thread(
-                    new FibonacciThreadsMemoized(i, BigInteger.valueOf(algo)));
+            // Los números de Fibonacci crecen rápido. Para 'long', el máximo índice es F(92).
+            // Usar un límite superior de 90 es seguro.
+            long algo = (long) (Math.random() * 90) + 1;
+            threads[i] = new Thread(new FibonacciThreads(i, algo));
         }
-        
+
         for (int i = 0; i < 10; i++) threads[i].start();
     }
 }
